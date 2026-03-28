@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hand Cricket</title>
+  <meta name="description" content="AI-powered hand cricket game with gesture recognition and online multiplayer.">
+  <link rel="stylesheet" href="style.css">
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800;900&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+</head>
+<body>
+
+  <!-- ======== SCREEN: MENU ======== -->
+  <div id="scr-menu" class="screen active">
+    <div class="menu-wrap">
+      <h1 class="title">HAND<br>CRICKET</h1>
+      <p class="subtitle">GESTURE ARENA</p>
+      <div class="gesture-ref">
+        Valid throws: <strong>1 &middot; 2 &middot; 3 &middot; 4 &middot; 5</strong> (fingers) &nbsp;|&nbsp; <strong>Fist = 10</strong>
+      </div>
+
+      <!-- How It Works Dropdown -->
+      <details class="info-dropdown">
+        <summary class="info-toggle">How does the AI learn?</summary>
+        <div class="info-body">
+          <p><strong>The AI adapts to YOU in real-time</strong> using a hybrid prediction model:</p>
+          <div class="info-item">
+            <span class="info-tag tag-1">Markov Chain (50%)</span>
+            <span>Tracks what you throw AFTER each move. If you often throw 3 after a 5, it learns that transition.</span>
+          </div>
+          <div class="info-item">
+            <span class="info-tag tag-2">Frequency Analysis (30%)</span>
+            <span>Counts how often you use each number overall. If you favor 2 and 4, it notices.</span>
+          </div>
+          <div class="info-item">
+            <span class="info-tag tag-3">Recency Bias (20%)</span>
+            <span>Weighs your last 8 throws more heavily, detecting when you start repeating patterns.</span>
+          </div>
+          <p class="info-note">When <strong>bowling</strong>, the AI picks your most likely throw (to get you OUT). When <strong>batting</strong>, it avoids your predicted throw. Learning persists across sessions.</p>
+        </div>
+      </details>
+
+      <div class="menu-grid">
+        <button class="btn btn-primary" id="btn-ai">
+          <span class="btn-label">VS AI</span>
+          <span class="btn-hint">Single Player</span>
+        </button>
+        <button class="btn btn-accent" id="btn-create">
+          <span class="btn-label">CREATE MATCH</span>
+          <span class="btn-hint">Get a room code</span>
+        </button>
+        <div class="join-row">
+          <input type="text" id="inp-code" class="code-input" placeholder="ROOM CODE" maxlength="6" spellcheck="false" autocomplete="off">
+          <button class="btn btn-accent" id="btn-join">JOIN</button>
+        </div>
+      </div>
+      <p class="footnote">Camera required for gesture detection</p>
+    </div>
+  </div>
+
+  <!-- ======== SCREEN: LOBBY ======== -->
+  <div id="scr-lobby" class="screen">
+    <div class="lobby-wrap">
+      <h2 class="section-title">WAITING FOR OPPONENT</h2>
+      <div class="room-code-display" id="lobby-code">------</div>
+      <p class="lobby-hint">Share this code with your friend</p>
+      <div class="spinner"></div>
+      <button class="btn btn-sm" id="btn-lobby-back">CANCEL</button>
+    </div>
+  </div>
+
+  <!-- ======== SCREEN: TOSS ======== -->
+  <div id="scr-toss" class="screen">
+    <div class="toss-wrap">
+      <h2 class="section-title">TOSS</h2>
+      <p class="toss-msg" id="toss-msg">Choose Odd or Even</p>
+      <div id="toss-btns" class="toss-btns">
+        <button class="btn btn-primary" id="btn-odd">ODD</button>
+        <button class="btn btn-primary" id="btn-even">EVEN</button>
+      </div>
+      <div id="toss-cam" class="toss-cam-area hidden">
+        <p class="toss-hint">Show your hand clearly, then click THROW below</p>
+        <div class="cam-box cam-box-med">
+          <canvas id="toss-canvas" width="640" height="480"></canvas>
+          <div id="toss-cd" class="cd-overlay hidden">
+            <svg viewBox="0 0 120 120"><circle class="cd-bg" cx="60" cy="60" r="54"/><circle class="cd-ring" cx="60" cy="60" r="54" id="toss-ring"/></svg>
+            <span class="cd-num" id="toss-cd-num">3</span>
+          </div>
+        </div>
+        <button class="btn btn-action" id="btn-toss-throw">THROW FOR TOSS</button>
+      </div>
+      <div id="toss-result" class="toss-result hidden">
+        <div class="tr-card"><span class="tr-label">YOU</span><span class="tr-val" id="tr-p1">-</span></div>
+        <div class="tr-sep">+</div>
+        <div class="tr-card"><span class="tr-label" id="tr-p2-label">AI</span><span class="tr-val" id="tr-p2">-</span></div>
+        <div class="tr-sep">=</div>
+        <div class="tr-card tr-sum"><span class="tr-label">SUM</span><span class="tr-val" id="tr-sum">-</span></div>
+      </div>
+      <p class="toss-winner" id="toss-winner"></p>
+      <div id="role-btns" class="toss-btns hidden">
+        <button class="btn btn-primary" id="btn-bat">BAT FIRST</button>
+        <button class="btn btn-accent" id="btn-bowl">BOWL FIRST</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======== SCREEN: GAME ======== -->
+  <div id="scr-game" class="screen">
+    <div class="game-wrap">
+      <!-- Top Info -->
+      <div class="top-info">
+        <span class="badge badge-pri" id="badge-innings">INNINGS 1</span>
+        <span class="badge badge-acc" id="badge-round">ROUND 1</span>
+        <span class="badge badge-warn hidden" id="badge-target">TARGET: --</span>
+      </div>
+
+      <!-- Arena -->
+      <div class="arena">
+        <!-- P1 -->
+        <div class="panel" id="panel-1">
+          <div class="panel-name" id="pname-1">YOU</div>
+          <div class="panel-role" id="prole-1">--</div>
+          <div class="panel-score" id="pscore-1">0</div>
+          <div class="panel-throw-box">
+            <span class="ptb-label">THROW</span>
+            <span class="ptb-val" id="pthrow-1">-</span>
+          </div>
+        </div>
+
+        <!-- Camera -->
+        <div class="cam-col">
+          <div class="cam-box">
+            <canvas id="game-canvas" width="640" height="480"></canvas>
+            <div id="game-cd" class="cd-overlay hidden">
+              <svg viewBox="0 0 120 120"><circle class="cd-bg" cx="60" cy="60" r="54"/><circle class="cd-ring" cx="60" cy="60" r="54" id="game-ring"/></svg>
+              <span class="cd-num" id="game-cd-num">3</span>
+            </div>
+            <div id="game-flash" class="flash hidden"></div>
+          </div>
+          <button class="btn btn-action" id="btn-throw">THROW</button>
+          <label class="auto-label"><input type="checkbox" id="chk-auto"> Auto-continue</label>
+        </div>
+
+        <!-- P2 -->
+        <div class="panel" id="panel-2">
+          <div class="panel-name" id="pname-2">AI</div>
+          <div class="panel-role" id="prole-2">--</div>
+          <div class="panel-score" id="pscore-2">0</div>
+          <div class="panel-throw-box">
+            <span class="ptb-label">THROW</span>
+            <span class="ptb-val" id="pthrow-2">-</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- History -->
+      <div class="history-bar">
+        <span class="hb-label">HISTORY</span>
+        <div class="hb-list" id="hb-list"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======== SCREEN: RESULT ======== -->
+  <div id="scr-result" class="screen">
+    <div class="result-wrap">
+      <h2 class="section-title">MATCH OVER</h2>
+      <div class="final-row">
+        <div class="final-card"><span class="fc-name" id="fn-1">YOU</span><span class="fc-score" id="fs-1">0</span></div>
+        <div class="final-vs">VS</div>
+        <div class="final-card"><span class="fc-name" id="fn-2">AI</span><span class="fc-score" id="fs-2">0</span></div>
+      </div>
+      <p class="winner-text" id="winner-text">--</p>
+      <button class="btn btn-primary" id="btn-again">PLAY AGAIN</button>
+    </div>
+  </div>
+
+  <!-- Shared hidden video for camera -->
+  <video id="cam-video" style="display:none" autoplay playsinline></video>
+
+  <script src="ai.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

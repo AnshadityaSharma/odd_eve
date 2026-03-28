@@ -1,0 +1,11 @@
+{
+  "name": "hand-cricket",
+  "version": "1.0.0",
+  "description": "Neon Hand Cricket - AI & Online Multiplayer",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "ws": "^8.16.0"
+  }
+}
