@@ -83,11 +83,19 @@
       </div>
       <div id="toss-cam" class="toss-cam-area hidden">
         <p class="toss-hint">Show your hand clearly, then click THROW below</p>
-        <div class="cam-box cam-box-med">
-          <canvas id="toss-canvas" width="640" height="480"></canvas>
-          <div id="toss-cd" class="cd-overlay hidden">
-            <svg viewBox="0 0 120 120"><circle class="cd-bg" cx="60" cy="60" r="54"/><circle class="cd-ring" cx="60" cy="60" r="54" id="toss-ring"/></svg>
-            <span class="cd-num" id="toss-cd-num">3</span>
+        <div class="cam-row" id="toss-cam-row">
+          <div class="cam-box cam-box-med">
+            <canvas id="toss-canvas" width="640" height="480"></canvas>
+            <div id="toss-cd" class="cd-overlay hidden">
+              <svg viewBox="0 0 120 120"><circle class="cd-bg" cx="60" cy="60" r="54"/><circle class="cd-ring" cx="60" cy="60" r="54" id="toss-ring"/></svg>
+              <span class="cd-num" id="toss-cd-num">3</span>
+            </div>
+            <div class="cam-label" id="toss-cam-label">YOU</div>
+          </div>
+          <!-- Remote Video -->
+          <div class="cam-box cam-box-med hidden" id="toss-remote-cam-box">
+            <video id="toss-remote-video" autoplay playsinline></video>
+            <div class="cam-label">OPPONENT</div>
           </div>
         </div>
         <button class="btn btn-action" id="btn-toss-throw">THROW FOR TOSS</button>
@@ -132,14 +140,23 @@
 
         <!-- Camera -->
         <div class="cam-col">
-          <div class="cam-box">
-            <canvas id="game-canvas" width="640" height="480"></canvas>
-            <div id="game-cd" class="cd-overlay hidden">
-              <svg viewBox="0 0 120 120"><circle class="cd-bg" cx="60" cy="60" r="54"/><circle class="cd-ring" cx="60" cy="60" r="54" id="game-ring"/></svg>
-              <span class="cd-num" id="game-cd-num">3</span>
+          <div class="cam-row" id="game-cams">
+            <div class="cam-box" id="local-cam-box">
+              <canvas id="game-canvas" width="640" height="480"></canvas>
+              <div id="game-cd" class="cd-overlay hidden">
+                <svg viewBox="0 0 120 120"><circle class="cd-bg" cx="60" cy="60" r="54"/><circle class="cd-ring" cx="60" cy="60" r="54" id="game-ring"/></svg>
+                <span class="cd-num" id="game-cd-num">3</span>
+              </div>
+              <div id="game-flash" class="flash hidden"></div>
+              <div class="cam-label hidden" id="local-cam-label">YOU</div>
             </div>
-            <div id="game-flash" class="flash hidden"></div>
+            
+            <div class="cam-box hidden" id="remote-cam-box">
+              <video id="remote-video" autoplay playsinline></video>
+              <div class="cam-label">OPPONENT</div>
+            </div>
           </div>
+
           <button class="btn btn-action" id="btn-throw">THROW</button>
           <label class="auto-label"><input type="checkbox" id="chk-auto"> Auto-continue</label>
         </div>

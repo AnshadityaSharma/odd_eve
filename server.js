@@ -138,6 +138,14 @@ wss.on('connection', ws => {
         }
         break;
       }
+
+      case 'webrtc_signal': {
+        if (!room) break;
+        // Broadcast signal only to the other player
+        const otherPlayer = room.players.find(p => p && p !== ws);
+        if (otherPlayer) send(otherPlayer, { type: 'webrtc_signal', signal: msg.signal });
+        break;
+      }
     }
   });
 

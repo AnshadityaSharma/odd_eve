@@ -12,6 +12,15 @@
   let myNum = 0;            // 1 or 2 (online)
   let ws = null;            // WebSocket
 
+  // WebRTC
+  let peerConnection = null;
+  const ICE_SERVERS = {
+    iceServers: [
+      { urls: 'stun:stun.l.google.com:19302' },
+      { urls: 'stun:stun1.l.google.com:19302' }
+    ]
+  };
+
   let game = {
     innings: 1, round: 1,
     p1Score: 0, p2Score: 0,
@@ -197,6 +206,106 @@
     };
     busy = false;
     latestGesture = null;
+    stopWebRTC();
+  }
+
+  function stopWebRTC() {
+    if (peerConnection) {
+      peerConnection.close();
+      peerConnection = null;
+    }
+    const rv1 = $('remote-video'); if(rv1) rv1.srcObject = null;
+    const rv2 = $('toss-remote-video'); if(rv2) rv2.srcObject = null;
+    
+    if($('remote-cam-box')) $('remote-cam-box').classList.add('hidden');
+    if($('toss-remote-cam-box')) $('toss-remote-cam-box').classList.add('hidden');
+    if($('game-cams')) $('game-cams').classList.remove('dual');
+    if($('toss-cam-row')) $('toss-cam-row').classList.remove('dual');
+    if($('local-cam-label')) $('local-cam-label').classList.add('hidden');
+  }
+
+  // ─── WEBRTC ───────────────────────────────────────────
+  function setupWebRTC() {
+    if (peerConnection) peerConnection.close();
+    peerConnection = new RTCPeerConnection(ICE_SERVERS);
+    
+    const localVid = $('cam-video');
+    if (localVid && localVid.srcObject) {
+      const stream = localVid.srcObject;
+      stream.getTracks().forEach(track => peerConnection.addTrack(track, stream));
+    }
+    
+    localVid.addEventListener('playing', () => {
+      if (peerConnection && localVid.srcObject) {
+        const senders = peerConnection.getSenders();
+        const stream = localVid.srcObject;
+        stream.getTracks().forEach(track => {
+          if (!senders.find(s => s.track === track)) {
+            peerConnection.addTrack(track, stream);
+          }
+        });
+      }
+    });
+
+    peerConnection.onicecandidate = e => {
+      if (e.candidate) {
+        wsSend({ type: 'webrtc_signal', signal: { candidate: e.candidate } });
+      }
+    };
+
+    peerConnection.onnegotiationneeded = async () => {
+      try {
+        const offer = await peerConnection.createOffer();
+        await peerConnection.setLocalDescription(offer);
+        wsSend({ type: 'webrtc_signal', signal: { sdp: peerConnection.localDescription } });
+      } catch (err) {
+        console.error('Renegotiation err:', err);
+      }
+    };
+
+    peerConnection.ontrack = e => {
+      const remoteStream = e.streams[0];
+      const gameRemoteVid = $('remote-video');
+      if (gameRemoteVid) gameRemoteVid.srcObject = remoteStream;
+      const tossRemoteVid = $('toss-remote-video');
+      if (tossRemoteVid) tossRemoteVid.srcObject = remoteStream;
+      
+      if($('remote-cam-box')) $('remote-cam-box').classList.remove('hidden');
+      if($('toss-remote-cam-box')) $('toss-remote-cam-box').classList.remove('hidden');
+      if($('game-cams')) $('game-cams').classList.add('dual');
+      if($('toss-cam-row')) $('toss-cam-row').classList.add('dual');
+      if($('local-cam-label')) $('local-cam-label').classList.remove('hidden');
+    };
+  }
+
+  async function handleWebRTCSignal(signal) {
+    if (!peerConnection) return;
+    try {
+      if (signal.sdp) {
+        await peerConnection.setRemoteDescription(new RTCSessionDescription(signal.sdp));
+        if (signal.sdp.type === 'offer') {
+          const answer = await peerConnection.createAnswer();
+          await peerConnection.setLocalDescription(answer);
+          wsSend({ type: 'webrtc_signal', signal: { sdp: peerConnection.localDescription } });
+        }
+      } else if (signal.candidate) {
+        if (peerConnection.remoteDescription) {
+          await peerConnection.addIceCandidate(new RTCIceCandidate(signal.candidate));
+        } else {
+          if (!peerConnection.candidateQueue) peerConnection.candidateQueue = [];
+          peerConnection.candidateQueue.push(signal.candidate);
+        }
+      }
+      
+      if (signal.sdp && peerConnection.candidateQueue) {
+        for (const c of peerConnection.candidateQueue) {
+          await peerConnection.addIceCandidate(new RTCIceCandidate(c));
+        }
+        peerConnection.candidateQueue = [];
+      }
+    } catch (err) {
+      console.error('WebRTC error', err);
+    }
   }
 
   // ─── UI UPDATES ───────────────────────────────────────
@@ -481,6 +590,7 @@
         $('role-btns').classList.add('hidden');
         $('toss-winner').textContent = '';
         initHands();
+        setupWebRTC();
         break;
 
       case 'do_countdown': {
@@ -589,6 +699,10 @@
       case 'opponent_left':
         alert('Opponent disconnected.');
         show('scr-menu');
+        break;
+
+      case 'webrtc_signal':
+        handleWebRTCSignal(msg.signal);
         break;
 
       case 'error':
